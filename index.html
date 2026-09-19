@@ -933,7 +933,11 @@ function deletar(id){setData(getData().filter(function(r){return r.id!==id;}));r
 // Gasto no cartão fica 'pendente' até a fatura ser paga (botão em Config),
 // e só then desconta do saldo em conta — evitando contar duas vezes.
 function calcSaldoReal(){
-  var all=getData();
+  var hoje=new Date();hoje.setHours(23,59,59,999);
+  // Só considera o que já aconteceu de fato. Parcelas/recorrências futuras
+  // (ex: financiamento em 48x) já ficam lançadas com data futura no banco,
+  // mas ainda não devem contar no saldo nem na fatura até a data chegar.
+  var all=getData().filter(function(r){return toDate(r.data)<=hoje;});
   var entrou=0, saiu=0, faturaAberta=0;
   all.forEach(function(r){
     var st=r.status||'pago';
