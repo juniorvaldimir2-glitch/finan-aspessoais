@@ -359,11 +359,8 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
 
 <!-- RESUMO -->
 <div id="pg-resumo" class="page active">
-  <div class="saldo-big">
-    <div class="saldo-lbl">Em conta</div>
-    <div class="saldo-val" id="saldoBig">R$ 0,00</div>
-    <div class="poup-lbl" id="saldoBreak" style="margin-top:8px;line-height:1.7"></div>
-    <div class="poup-lbl" id="poupLbl"></div>
+  <div class="saldo-big" style="padding:14px 0 4px">
+    <div class="poup-lbl" id="saldoBreak" style="line-height:1.7;font-size:13px"></div>
   </div>
   <div class="stitle">Gastos por forma de pagamento (período)</div>
   <div class="kpi-row" style="margin-bottom:6px">
@@ -1064,10 +1061,7 @@ function renderResumo(){
   var all=getData().filter(function(r){return inRange(r,range.from,range.to);});
   var rec=sum(all,'receita');var gas=sum(all,'gasto');var inv=sum(all,'inv');
   var real=calcSaldoReal();
-  var sEl=document.getElementById('saldoBig');
-  sEl.textContent=fmt(real.saldoConta);sEl.style.color=real.saldoConta>=0?'var(--green)':'var(--red)';
   document.getElementById('saldoBreak').innerHTML=real.faturaAberta>0?('⚠️ Fatura em aberto (ainda vai sair): <b style="color:var(--red)">'+fmt(real.faturaAberta)+'</b>'):'Nenhuma fatura em aberto no momento';
-  document.getElementById('poupLbl').textContent=rec>0?'Taxa de poupança do período: '+((rec-gas)/rec*100).toFixed(0)+'% da receita':'';
   var gastosP=all.filter(function(r){return r.tipo==='gasto';});
   var gCartao=gastosP.filter(function(r){return (r.forma||'cartao')==='cartao';}).reduce(function(a,r){return a+r.valor;},0);
   var gOutro=gastosP.filter(function(r){return (r.forma||'cartao')!=='cartao';}).reduce(function(a,r){return a+r.valor;},0);
