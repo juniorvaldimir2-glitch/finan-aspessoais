@@ -302,8 +302,8 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
   </div>
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-lbl">Receita</div><div class="kpi-val" id="kpiRec" style="color:var(--green)">R$ 0</div></div>
-    <div class="kpi"><div class="kpi-lbl">Gastos</div><div class="kpi-val" id="kpiGas" style="color:var(--red)">R$ 0</div></div>
-    <div class="kpi"><div class="kpi-lbl">Disponível</div><div class="kpi-val" id="kpiSal">R$ 0</div></div>
+    <div class="kpi"><div class="kpi-lbl">Gastos (Pix e cartão)</div><div class="kpi-val" id="kpiGas" style="color:var(--red)">R$ 0</div></div>
+    <div class="kpi"><div class="kpi-lbl">Em conta</div><div class="kpi-val" id="kpiSal">R$ 0</div></div>
     <div class="kpi"><div class="kpi-lbl">Investido</div><div class="kpi-val" id="kpiInv" style="color:var(--blue)">R$ 0</div></div>
   </div>
 </div>
@@ -360,16 +360,17 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
 <!-- RESUMO -->
 <div id="pg-resumo" class="page active">
   <div class="saldo-big">
-    <div class="saldo-lbl">Disponível de fato</div>
+    <div class="saldo-lbl">Em conta</div>
     <div class="saldo-val" id="saldoBig">R$ 0,00</div>
     <div class="poup-lbl" id="saldoBreak" style="margin-top:8px;line-height:1.7"></div>
     <div class="poup-lbl" id="poupLbl"></div>
   </div>
   <div class="stitle">Gastos por forma de pagamento (período)</div>
-  <div class="kpi-row" style="margin-bottom:14px">
+  <div class="kpi-row" style="margin-bottom:6px">
     <div class="kpi"><div class="kpi-lbl">💳 Cartão</div><div class="kpi-val" id="gastoCartaoBig" style="color:var(--red)">R$ 0</div></div>
     <div class="kpi"><div class="kpi-lbl">💵 Débito / Pix / Dinheiro</div><div class="kpi-val" id="gastoOutroBig" style="color:var(--red)">R$ 0</div></div>
   </div>
+  <div style="font-size:10px;color:var(--muted);margin-bottom:14px">💳 inclui compras já agendadas p/ este ciclo que ainda não venceram — por isso pode ser maior que a "Fatura em aberto" lá em cima.</div>
   <div class="stitle">Gastos por categoria <span style="font-size:10px;color:var(--muted)">(clique para ver detalhes)</span></div>
   <div class="card">
     <div class="cwrap"><canvas id="pieChart"></canvas></div>
@@ -870,7 +871,7 @@ function setForma(f){
   document.getElementById('fmCartao').className='tbtn'+(f==='cartao'?' ai':'');
   document.getElementById('fmOutro').className='tbtn'+(f==='outro'?' ai':'');
   setStatus(f==='cartao'?'pendente':'pago');
-  document.getElementById('statusHint').textContent=f==='cartao'?'Fica como dívida em aberto até você pagar a fatura (aba Config).':'Sai da conta na hora, então normalmente já está "Pago".';
+  document.getElementById('statusHint').textContent=f==='cartao'?'Fica como dívida em aberto até você pagar a fatura (aba Config).':'Sai da conta sozinho na data marcada — conta automaticamente quando o dia chegar, não precisa marcar "Pago".';
 }
 function setRec(v){isRec=v;document.getElementById('recN').className='tbtn'+(v?'':' ar');document.getElementById('recS').className='tbtn'+(v?' ap':'');document.getElementById('recField').style.display=v?'block':'none';if(v)setPar(false);}
 function setPar(v){isPar=v;document.getElementById('parN').className='tbtn'+(v?'':' ar');document.getElementById('parS').className='tbtn'+(v?' ap':'');document.getElementById('parField').style.display=v?'block':'none';if(v)setRec(false);}
@@ -986,7 +987,9 @@ function calcSaldoReal(){
         if(st==='pago'){ if(dentroJanela) saiu+=r.valor; }
         else { faturaAberta+=r.valor; } // dívida em aberto vale mesmo se anterior ao marco
       } else {
-        if(st==='pago'&&dentroJanela) saiu+=r.valor;
+        // Débito/Pix/Dinheiro sai da conta sozinho na data, sem precisar de confirmação
+        // manual — então conta como realizado assim que a data chega, independente do status.
+        if(dentroJanela) saiu+=r.valor;
       }
     }
   });
@@ -1044,8 +1047,8 @@ function render(){
   var real=calcSaldoReal();
   document.getElementById('kpiRec').textContent=fmt(rec);
   document.getElementById('kpiGas').textContent=fmt(gas);
-  document.getElementById('kpiSal').textContent=fmt(real.disponivel);
-  document.getElementById('kpiSal').style.color=real.disponivel>=0?'var(--green)':'var(--red)';
+  document.getElementById('kpiSal').textContent=fmt(real.saldoConta);
+  document.getElementById('kpiSal').style.color=real.saldoConta>=0?'var(--green)':'var(--red)';
   document.getElementById('kpiInv').textContent=fmt(inv);
   checkAlertas();
   var pg=document.querySelector('.page.active');if(!pg)return;
@@ -1062,8 +1065,8 @@ function renderResumo(){
   var rec=sum(all,'receita');var gas=sum(all,'gasto');var inv=sum(all,'inv');
   var real=calcSaldoReal();
   var sEl=document.getElementById('saldoBig');
-  sEl.textContent=fmt(real.disponivel);sEl.style.color=real.disponivel>=0?'var(--green)':'var(--red)';
-  document.getElementById('saldoBreak').innerHTML='Em conta: <b style="color:var(--text)">'+fmt(real.saldoConta)+'</b> · Fatura em aberto: <b style="color:var(--red)">'+fmt(real.faturaAberta)+'</b>';
+  sEl.textContent=fmt(real.saldoConta);sEl.style.color=real.saldoConta>=0?'var(--green)':'var(--red)';
+  document.getElementById('saldoBreak').innerHTML=real.faturaAberta>0?('⚠️ Fatura em aberto (ainda vai sair): <b style="color:var(--red)">'+fmt(real.faturaAberta)+'</b>'):'Nenhuma fatura em aberto no momento';
   document.getElementById('poupLbl').textContent=rec>0?'Taxa de poupança do período: '+((rec-gas)/rec*100).toFixed(0)+'% da receita':'';
   var gastosP=all.filter(function(r){return r.tipo==='gasto';});
   var gCartao=gastosP.filter(function(r){return (r.forma||'cartao')==='cartao';}).reduce(function(a,r){return a+r.valor;},0);
