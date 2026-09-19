@@ -470,6 +470,8 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     </div>
     <div style="font-size:11px;color:var(--muted);margin:4px 0 10px;line-height:1.5">Quando você pagar a fatura (normalmente no dia do recebimento do salário), marque abaixo. Isso marca como "pago" apenas os gastos de cartão de ciclos já fechados, sem duplicar nada no seu saldo.</div>
     <button class="sbtn" onclick="pagarFatura()">💳 Marcar fatura anterior como paga</button>
+    <div style="font-size:11px;color:var(--muted);margin:14px 0 6px;line-height:1.5;border-top:1px solid var(--border);padding-top:12px">Gastos de cartão registrados ANTES dessa atualização não ficaram marcados como pendentes automaticamente. Se os gastos do ciclo atual ainda não foram pagos, corrija de uma vez:</div>
+    <button class="secbtn" onclick="corrigirPendenciasCicloAtual()">Corrigir pendências do ciclo atual</button>
   </div>
   <div class="stitle">Configuração do ciclo</div>
   <div class="card">
@@ -993,6 +995,26 @@ function faturaAPagarAgora(){
   return getData().filter(function(r){
     return r.tipo==='gasto'&&(r.forma||'cartao')==='cartao'&&(r.status||'pago')==='pendente'&&toDate(r.data)<cutoff;
   });
+}
+
+// Corrige gastos de cartão do ciclo ATUAL (ainda aberto) que ficaram como
+// 'pago' por padrão (registros antigos, de antes da forma de pagamento existir).
+// Não mexe em ciclos fechados, pra não criar dívida falsa em algo que já foi pago de verdade.
+function corrigirPendenciasCicloAtual(){
+  var cutoff=getCicloRange().from;
+  var hoje=new Date();hoje.setHours(23,59,59,999);
+  var itens=getData().filter(function(r){
+    return r.tipo==='gasto'&&(r.forma||'cartao')==='cartao'&&(r.status||'pago')==='pago'&&toDate(r.data)>=cutoff&&toDate(r.data)<=hoje;
+  });
+  if(!itens.length){alert('Nenhum gasto de cartão deste ciclo precisa de ajuste.');return;}
+  var total=itens.reduce(function(a,r){return a+r.valor;},0);
+  if(!confirm('Marcar '+itens.length+' gasto(s) de cartão deste ciclo como Pendente, totalizando '+fmt(total)+'?\n\nUse isso só se esses gastos AINDA NÃO foram pagos (a fatura deste ciclo ainda não venceu).')) return;
+  var ids={};itens.forEach(function(r){ids[r.id]=true;});
+  var d=getData();
+  d.forEach(function(r){if(ids[r.id])r.status='pendente';});
+  setData(d);
+  alert('Pronto! Esses gastos agora aparecem como pendentes.');
+  render();renderConfig();
 }
 
 function pagarFatura(){
