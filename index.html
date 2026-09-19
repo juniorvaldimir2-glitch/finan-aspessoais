@@ -302,7 +302,7 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
   </div>
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-lbl">Receita</div><div class="kpi-val" id="kpiRec" style="color:var(--green)">R$ 0</div></div>
-    <div class="kpi"><div class="kpi-lbl">Gastos</div><div class="kpi-val" id="kpiGas" style="color:var(--red)">R$ 0</div></div>
+    <div class="kpi"><div class="kpi-lbl">Gastos</div><div class="kpi-val" id="kpiGas" style="color:var(--red)">R$ 0</div><div class="kpi-sub" id="kpiGasSub" style="color:var(--muted)"></div></div>
     <div class="kpi"><div class="kpi-lbl">Disponível</div><div class="kpi-val" id="kpiSal">R$ 0</div></div>
     <div class="kpi"><div class="kpi-lbl">Investido</div><div class="kpi-val" id="kpiInv" style="color:var(--blue)">R$ 0</div></div>
   </div>
@@ -1037,8 +1037,12 @@ function render(){
   var all=getData().filter(function(r){return inRange(r,range.from,range.to);});
   var rec=sum(all,'receita');var gas=sum(all,'gasto');var inv=sum(all,'inv');
   var real=calcSaldoReal();
+  var gastosP=all.filter(function(r){return r.tipo==='gasto';});
+  var gCartao=gastosP.filter(function(r){return (r.forma||'cartao')==='cartao';}).reduce(function(a,r){return a+r.valor;},0);
+  var gOutro=gastosP.filter(function(r){return (r.forma||'cartao')!=='cartao';}).reduce(function(a,r){return a+r.valor;},0);
   document.getElementById('kpiRec').textContent=fmt(rec);
   document.getElementById('kpiGas').textContent=fmt(gas);
+  document.getElementById('kpiGasSub').textContent='💳 '+fmt(gCartao)+' · 💵 '+fmt(gOutro);
   document.getElementById('kpiSal').textContent=fmt(real.disponivel);
   document.getElementById('kpiSal').style.color=real.disponivel>=0?'var(--green)':'var(--red)';
   document.getElementById('kpiInv').textContent=fmt(inv);
