@@ -682,7 +682,7 @@ function setCustCats(c){localStorage.setItem('fin_cats',JSON.stringify(c));if(ty
 function getDiaCiclo(){return parseInt(localStorage.getItem('fin_dia_ciclo'))||9;}
 function setDiaCiclo(d){localStorage.setItem('fin_dia_ciclo',String(d));if(typeof syncToFirebase==='function')syncToFirebase();}
 function getSaldoInicial(){try{var s=JSON.parse(localStorage.getItem('fin_saldo_inicial'));if(!s||typeof s.valor!=='number'||!s.data)return null;return s;}catch(e){return null;}}
-function setSaldoInicialCfg(valor,data){localStorage.setItem('fin_saldo_inicial',JSON.stringify({valor:valor,data:data}));if(typeof syncToFirebase==='function')syncToFirebase();}
+function setSaldoInicialCfg(valor,data,salvoEm){localStorage.setItem('fin_saldo_inicial',JSON.stringify({valor:valor,data:data,salvoEm:salvoEm||Date.now()}));if(typeof syncToFirebase==='function')syncToFirebase();}
 function getCG(){var c=getCustCats();var r={};var k;for(k in CATS)r[k]=CATS[k];for(k in c.gastos)r[k]=c.gastos[k];return r;}
 function getCI(){var c=getCustCats();var r={};var k;for(k in INVS)r[k]=INVS[k];for(k in c.inv)r[k]=c.inv[k];return r;}
 
@@ -961,7 +961,6 @@ function deletar(id){setData(getData().filter(function(r){return r.id!==id;}));r
 function calcSaldoReal(){
   var hoje=new Date();hoje.setHours(23,59,59,999);
   var ini=getSaldoInicial();
-  var cutoffIni=ini?toDate(ini.data):null;
   // Só considera o que já aconteceu de fato. Parcelas/recorrências futuras
   // (ex: financiamento em 48x) já ficam lançadas com data futura no banco,
   // mas ainda não devem contar no saldo nem na fatura até a data chegar.
@@ -970,10 +969,12 @@ function calcSaldoReal(){
   all.forEach(function(r){
     var st=r.status||'pago';
     var dt=toDate(r.data);
-    // Se houver um saldo inicial configurado, tudo ANTES dessa data já está
-    // embutido no valor informado — só somamos o que aconteceu a partir dali,
-    // para não depender do histórico completo estar correto.
-    var dentroJanela=!cutoffIni||dt>=cutoffIni;
+    // Se houver um saldo inicial configurado, o valor informado já reflete tudo
+    // até aquele momento. Então só somamos o que veio DEPOIS: lançamentos de dias
+    // posteriores à data do saldo, ou lançamentos da própria data que foram
+    // criados depois que o saldo foi salvo (r.id guarda o instante da criação).
+    // Lançamentos da própria data criados antes disso já estão no saldo informado.
+    var dentroJanela=!ini||r.data>ini.data||(r.data===ini.data&&!!ini.salvoEm&&r.id>ini.salvoEm);
     if(r.tipo==='receita'){
       if(st==='pago'&&dentroJanela) entrou+=r.valor;
     } else if(r.tipo==='inv'){
@@ -1451,7 +1452,7 @@ function copiarClaude(){
 
 
 function exportar(){var blob=new Blob([JSON.stringify({data:getData(),metas:getMetas(),cats:getCustCats(),dia:getDiaCiclo(),saldoInicial:getSaldoInicial()})],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='financas-backup.json';a.click();}
-function importar(e){var file=e.target.files[0];if(!file)return;var reader=new FileReader();reader.onload=function(ev){try{var obj=JSON.parse(ev.target.result);if(obj.data)setData(obj.data);if(obj.metas)setMetas(obj.metas);if(obj.cats)setCustCats(obj.cats);if(obj.dia)setDiaCiclo(obj.dia);if(obj.saldoInicial)setSaldoInicialCfg(obj.saldoInicial.valor,obj.saldoInicial.data);alert('Importado!');render();}catch(err){alert('Arquivo invalido.');}};reader.readAsText(file);}
+function importar(e){var file=e.target.files[0];if(!file)return;var reader=new FileReader();reader.onload=function(ev){try{var obj=JSON.parse(ev.target.result);if(obj.data)setData(obj.data);if(obj.metas)setMetas(obj.metas);if(obj.cats)setCustCats(obj.cats);if(obj.dia)setDiaCiclo(obj.dia);if(obj.saldoInicial)setSaldoInicialCfg(obj.saldoInicial.valor,obj.saldoInicial.data,obj.saldoInicial.salvoEm);alert('Importado!');render();}catch(err){alert('Arquivo invalido.');}};reader.readAsText(file);}
 function apagarTudo(){if(confirm('Apagar TODOS os dados?')){localStorage.removeItem('fin_data');localStorage.removeItem('fin_metas');localStorage.removeItem('fin_cats');localStorage.removeItem('fin_saldo_inicial');render();}}
 
 buildSelects();render();
