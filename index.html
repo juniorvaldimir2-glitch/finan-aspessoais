@@ -372,7 +372,7 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
   <div style="font-size:10px;color:var(--muted);margin-bottom:14px">💳 inclui compras já agendadas p/ este ciclo que ainda não venceram — por isso pode ser maior que a "Fatura em aberto" lá em cima.</div>
   <div class="stitle">Gastos por categoria <span style="font-size:10px;color:var(--muted)">(clique para ver detalhes)</span></div>
   <div class="card">
-    <div class="cwrap"><canvas id="pieChart"></canvas></div>
+    <div class="cwrap"><canvas id="pieChart"></canvas><div id="pieEmpty" class="empty" style="display:none"><div class="empty-i">📊</div>Sem gastos no período</div></div>
     <div class="legend" id="pieLegend"></div>
   </div>
   <div id="catDetalhe" style="display:none;margin-top:2px">
@@ -1133,10 +1133,15 @@ function renderResumo(){
   if(charts.pie){charts.pie.destroy();delete charts.pie;}
   var canvas=document.getElementById('pieChart');
   if(!canvas)return;
+  // O canvas nunca é apagado: sem gastos, ele só é escondido e a mensagem aparece no lugar.
+  // (Antes o canvas era removido do HTML e o gráfico não voltava mais até recarregar a página.)
+  var pieEmpty=document.getElementById('pieEmpty');
+  canvas.style.display=data.length?'block':'none';
+  if(pieEmpty)pieEmpty.style.display=data.length?'none':'block';
   if(data.length){
     charts.pie=new Chart(canvas,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:'#13161f',hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',onClick:function(e,els){if(els&&els.length>0)showCatDetail(catKeys[els[0].index],byCat,cg,range);},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+fmt(c.raw)+' (clique para detalhes)';}}}}}});
   } else {
-    canvas.parentElement.innerHTML='<div class="empty"><div class="empty-i">📊</div>Sem gastos no período</div>';
+    canvas.style.display='none';
   }
   renderMetasResumo(byCat,cg,all);
 }
@@ -1232,7 +1237,7 @@ function setAnalise(mode,btn){analiseMode=mode;document.querySelectorAll('#anali
 
 function makeBar(id,labels,datasets){if(charts[id]){charts[id].destroy();delete charts[id];}var el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,{type:'bar',data:{labels:labels,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'rgba(238,240,248,0.5)',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'rgba(238,240,248,0.5)',font:{size:11},callback:function(v){return fmtK(v);}},grid:{color:'rgba(255,255,255,0.04)'}}}}});}
 function makeLine(id,labels,datasets,yFmt){if(charts[id]){charts[id].destroy();delete charts[id];}var el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,{type:'line',data:{labels:labels,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:datasets.length>1,labels:{color:'rgba(238,240,248,0.6)',font:{size:11},boxWidth:10}}},scales:{x:{ticks:{color:'rgba(238,240,248,0.5)',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'rgba(238,240,248,0.5)',font:{size:11},callback:yFmt||function(v){return fmtK(v);}},grid:{color:'rgba(255,255,255,0.04)'}}}}});}
-function makeDonut(id,labels,data,colors,legId){if(charts[id]){charts[id].destroy();delete charts[id];}var el=document.getElementById(id);if(!el)return;var total=data.reduce(function(a,b){return a+b;},0);if(legId){var legEl=document.getElementById(legId);legEl.innerHTML='';labels.forEach(function(l,i){var div=document.createElement('div');div.className='leg-item';div.innerHTML='<div class="leg-dot" style="background:'+colors[i]+'"></div>'+l+' '+(total>0?(data[i]/total*100).toFixed(0)+'%':'');legEl.appendChild(div);});}if(!total){el.parentElement.innerHTML='<div class="empty"><div class="empty-i">📊</div>Sem dados no período</div>';return;}charts[id]=new Chart(el,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:'#13161f',hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+fmt(c.raw);}}}}}});}
+function makeDonut(id,labels,data,colors,legId){if(charts[id]){charts[id].destroy();delete charts[id];}var el=document.getElementById(id);if(!el)return;var total=data.reduce(function(a,b){return a+b;},0);if(legId){var legEl=document.getElementById(legId);legEl.innerHTML='';labels.forEach(function(l,i){var div=document.createElement('div');div.className='leg-item';div.innerHTML='<div class="leg-dot" style="background:'+colors[i]+'"></div>'+l+' '+(total>0?(data[i]/total*100).toFixed(0)+'%':'');legEl.appendChild(div);});}var vazio=el.parentElement.querySelector('.donut-empty');if(!total){el.style.display='none';if(!vazio){vazio=document.createElement('div');vazio.className='empty donut-empty';vazio.innerHTML='<div class="empty-i">📊</div>Sem dados no período';el.parentElement.appendChild(vazio);}vazio.style.display='block';return;}el.style.display='block';if(vazio)vazio.style.display='none';charts[id]=new Chart(el,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:'#13161f',hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+fmt(c.raw);}}}}}});}
 
 function renderAnalise(){
   var all=getData();var months=getAnaliseMeses();if(!months.length)return;
