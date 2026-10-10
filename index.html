@@ -362,6 +362,8 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
   <div class="saldo-big" style="padding:14px 0 4px">
     <div class="poup-lbl" id="saldoBreak" style="line-height:1.7;font-size:13px"></div>
   </div>
+  <div class="stitle">Planejamento do ciclo</div>
+  <div class="card" id="planoCiclo"></div>
   <div class="stitle">Gastos por forma de pagamento (período)</div>
   <div class="kpi-row" style="margin-bottom:6px">
     <div class="kpi"><div class="kpi-lbl">💳 Cartão</div><div class="kpi-val" id="gastoCartaoBig" style="color:var(--red)">R$ 0</div></div>
@@ -476,7 +478,13 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     <div style="font-size:11px;color:var(--muted);margin:14px 0 6px;line-height:1.5;border-top:1px solid var(--border);padding-top:12px">Gastos de cartão registrados ANTES dessa atualização não ficaram marcados como pendentes automaticamente. Se os gastos do ciclo atual ainda não foram pagos, corrija de uma vez:</div>
     <button class="secbtn" onclick="corrigirPendenciasCicloAtual()">Corrigir pendências do ciclo atual</button>
   </div>
-  <div class="stitle">Configuração do ciclo</div>
+  <div class="stitle">Meta total de gastos do ciclo</div>
+  <div class="card">
+    <div style="font-size:12px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Quanto você pretende gastar, no máximo, em cada ciclo (Pix e cartão, incluindo parcelas e gastos agendados). Com isso o Resumo mostra quanto ainda dá para gastar e o limite por dia e por semana. Deixe em branco para remover a meta.</div>
+    <div class="field"><label>Meta total (R$)</label><input type="number" id="cfgMetaTotal" placeholder="0,00" step="0.01" inputmode="decimal"></div>
+    <button class="sbtn" onclick="salvarMetaTotal()">Salvar meta total</button>
+  </div>
+  <div class="stitle" style="margin-top:14px">Configuração do ciclo</div>
   <div class="card">
     <div style="font-size:13px;color:var(--muted2);margin-bottom:12px">Seu ciclo financeiro começa todo mês no dia:</div>
     <div style="display:flex;align-items:center;gap:12px">
@@ -706,6 +714,7 @@ function getCicloRange(){
     from=new Date(now.getFullYear(),now.getMonth()-1,dia);
     to=new Date(now.getFullYear(),now.getMonth(),dia-1);
   }
+  to.setHours(23,59,59,999); // inclui os lançamentos do último dia do ciclo
   return{from:from,to:to};
 }
 
@@ -714,18 +723,20 @@ function getCicloAntRange(){
   var dia=getDiaCiclo();
   var from=new Date(cur.from.getFullYear(),cur.from.getMonth()-1,dia);
   var to=new Date(cur.from.getFullYear(),cur.from.getMonth(),dia-1);
+  to.setHours(23,59,59,999);
   return{from:from,to:to};
 }
 
 function getPeriodoRange(){
   var now=new Date();
+  var fimHoje=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999); // fim de hoje, p/ incluir lançamentos de hoje
   if(periodoAtual==='ciclo')return getCicloRange();
   if(periodoAtual==='ciclo-ant')return getCicloAntRange();
-  if(periodoAtual==='mes')return{from:new Date(now.getFullYear(),now.getMonth(),1),to:new Date(now.getFullYear(),now.getMonth()+1,0)};
-  if(periodoAtual==='30d')return{from:new Date(now.getFullYear(),now.getMonth(),now.getDate()-30),to:now};
-  if(periodoAtual==='90d')return{from:new Date(now.getFullYear(),now.getMonth(),now.getDate()-90),to:now};
-  if(periodoAtual==='ano')return{from:new Date(now.getFullYear(),0,1),to:now};
-  if(periodoAtual==='tudo')return{from:new Date(2000,0,1),to:now};
+  if(periodoAtual==='mes')return{from:new Date(now.getFullYear(),now.getMonth(),1),to:new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59,999)};
+  if(periodoAtual==='30d')return{from:new Date(now.getFullYear(),now.getMonth(),now.getDate()-30),to:fimHoje};
+  if(periodoAtual==='90d')return{from:new Date(now.getFullYear(),now.getMonth(),now.getDate()-90),to:fimHoje};
+  if(periodoAtual==='ano')return{from:new Date(now.getFullYear(),0,1),to:fimHoje};
+  if(periodoAtual==='tudo')return{from:new Date(2000,0,1),to:fimHoje};
   if(periodoAtual==='custom'&&customFrom&&customTo)return{from:customFrom,to:customTo};
   return getCicloRange();
 }
@@ -783,6 +794,42 @@ function salvarSaldoInicial(){
   setSaldoInicialCfg(v,d);
   alert('Saldo inicial salvo! O disponível já foi recalculado.');
   render();renderConfig();
+}
+// META TOTAL + PLANEJAMENTO DO CICLO
+// A meta total fica dentro de fin_metas (campo "total"), então já sincroniza com o Firebase.
+function getMetaTotal(){var t=getMetas().total;return(typeof t==='number'&&t>0)?t:0;}
+function salvarMetaTotal(){
+  var v=parseFloat(document.getElementById('cfgMetaTotal').value);
+  var m=getMetas();
+  if(isNaN(v)||v<=0){delete m.total;setMetas(m);alert('Meta total removida.');render();return;}
+  m.total=v;setMetas(m);
+  alert('Meta total salva!');
+  render();
+}
+function renderPlano(){
+  var el=document.getElementById('planoCiclo');if(!el)return;
+  var meta=getMetaTotal();
+  if(!meta){el.innerHTML='<div class="empty"><div class="empty-i">🎯</div>Defina a meta total de gastos do ciclo na aba Config.</div>';return;}
+  var cr=getCicloRange();
+  var gastos=getData().filter(function(r){return r.tipo==='gasto'&&inRange(r,cr.from,cr.to);}).reduce(function(a,r){return a+r.valor;},0);
+  var restante=meta-gastos;
+  var hoje=new Date();var h0=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate());
+  var fim0=new Date(cr.to.getFullYear(),cr.to.getMonth(),cr.to.getDate());
+  var dias=Math.max(1,Math.round((fim0-h0)/86400000)+1);
+  var porDia=restante>0?restante/dias:0;
+  var pct=Math.min(gastos/meta*100,100);
+  var cls=gastos>=meta?'over':pct>=80?'warn':'ok';
+  var html='<div class="kpi-row">';
+  html+='<div class="kpi"><div class="kpi-lbl">Ainda posso gastar</div><div class="kpi-val" style="color:'+(restante>=0?'var(--green)':'var(--red)')+'">'+fmt(restante)+'</div></div>';
+  html+='<div class="kpi"><div class="kpi-lbl">Meta do ciclo</div><div class="kpi-val">'+fmt(meta)+'</div></div>';
+  html+='<div class="kpi"><div class="kpi-lbl">Por dia</div><div class="kpi-val">'+fmt(porDia)+'</div></div>';
+  html+='<div class="kpi"><div class="kpi-lbl">Por semana</div><div class="kpi-val">'+fmt(porDia*7)+'</div></div>';
+  html+='</div>';
+  html+='<div class="prog-bg" style="margin-top:12px"><div class="prog-fill prog-'+cls+'" style="width:'+pct.toFixed(1)+'%"></div></div>';
+  html+='<div class="prog-pct">'+fmt(gastos)+' de '+fmt(meta)+' ('+(gastos/meta*100).toFixed(0)+'%)</div>';
+  if(restante<0)html+='<div style="font-size:11px;color:var(--red);margin-top:6px">Meta estourada em '+fmt(-restante)+'.</div>';
+  else html+='<div style="font-size:11px;color:var(--muted);margin-top:6px">'+dias+' dia(s) até '+fmtDate(cr.to)+', contando hoje. Inclui parcelas e gastos agendados do ciclo.</div>';
+  el.innerHTML=html;
 }
 function salvarCiclo(){
   var v=parseInt(document.getElementById('cfgDiaCiclo').value);
@@ -1062,7 +1109,7 @@ function renderResumo(){
   var all=getData().filter(function(r){return inRange(r,range.from,range.to);});
   var rec=sum(all,'receita');var gas=sum(all,'gasto');var inv=sum(all,'inv');
   var real=calcSaldoReal();
-  document.getElementById('saldoBreak').innerHTML=real.faturaAberta>0?('⚠️ Fatura em aberto (ainda vai sair): <b style="color:var(--red)">'+fmt(real.faturaAberta)+'</b>'):'Nenhuma fatura em aberto no momento';
+  renderPlano();document.getElementById('saldoBreak').innerHTML=real.faturaAberta>0?('⚠️ Fatura em aberto (ainda vai sair): <b style="color:var(--red)">'+fmt(real.faturaAberta)+'</b>'):'Nenhuma fatura em aberto no momento';
   var gastosP=all.filter(function(r){return r.tipo==='gasto';});
   var gCartao=gastosP.filter(function(r){return (r.forma||'cartao')==='cartao';}).reduce(function(a,r){return a+r.valor;},0);
   var gOutro=gastosP.filter(function(r){return (r.forma||'cartao')!=='cartao';}).reduce(function(a,r){return a+r.valor;},0);
@@ -1259,6 +1306,8 @@ function renderInvest(){
 
 function renderConfig(){
   document.getElementById('cfgDiaCiclo').value=getDiaCiclo();
+  var cfgMT=document.getElementById('cfgMetaTotal');
+  if(cfgMT&&!cfgMT.matches(':focus'))cfgMT.value=getMetaTotal()||'';
   var saldoIni=getSaldoInicial();
   var iniValEl=document.getElementById('cfgSaldoIniVal');var iniDataEl=document.getElementById('cfgSaldoIniData');
   if(saldoIni){
