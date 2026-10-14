@@ -403,6 +403,11 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
       <option value="pago">✅ Pagos</option>
       <option value="pendente">⏳ Pendentes</option>
     </select>
+    <select id="formaFilter" onchange="renderRegistros()" style="max-width:150px">
+      <option value="">Todas as formas</option>
+      <option value="cartao">💳 Cartão de crédito</option>
+      <option value="outro">💵 Pix / Débito</option>
+    </select>
   </div>
   <div id="registrosList"></div>
 </div>
@@ -1161,10 +1166,13 @@ function renderRegistros(){
   if(catF)all=all.filter(function(r){return r.cat===catF;});
   if(tipoF)all=all.filter(function(r){return r.tipo===tipoF;});
   if(statusF)all=all.filter(function(r){return (r.status||'pago')===statusF;});
+  var formaF=document.getElementById('formaFilter')?document.getElementById('formaFilter').value:'';
+  if(formaF)all=all.filter(function(r){return r.tipo==='gasto'&&(r.forma||'cartao')===formaF;});
   all.sort(function(a,b){return new Date(b.data)-new Date(a.data);});
   var el=document.getElementById('registrosList');
   if(!all.length){el.innerHTML='<div class="empty"><div class="empty-i">📋</div>Nenhum registro no período</div>';return;}
-  el.innerHTML='<div class="card">'+all.map(function(r){
+  var totalForma=formaF?'<div style="font-size:12px;color:var(--muted2);margin:0 2px 8px">'+all.length+' registro(s) · total <b style="color:var(--red)">'+fmt(all.reduce(function(a,r){return a+r.valor;},0))+'</b></div>':'';
+  el.innerHTML=totalForma+'<div class="card">'+all.map(function(r){
     var isG=r.tipo==='gasto';var isI=r.tipo==='inv';
     var cat=isI?(ci[r.cat]||INVS.outros_inv):(cg[r.cat]||CATS.outros);
     var cor=isG?'var(--red)':isI?'var(--blue)':'var(--green)';
