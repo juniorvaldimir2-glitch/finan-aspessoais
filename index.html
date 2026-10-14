@@ -367,7 +367,6 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     <div class="kpi"><div class="kpi-lbl">💳 Cartão</div><div class="kpi-val" id="gastoCartaoBig" style="color:var(--red)">R$ 0</div></div>
     <div class="kpi"><div class="kpi-lbl">💵 Débito / Pix / Dinheiro</div><div class="kpi-val" id="gastoOutroBig" style="color:var(--red)">R$ 0</div></div>
   </div>
-  <div class="kpi-row" id="planoCiclo" style="margin:0 0 6px;grid-template-columns:1fr"></div>
   <div style="font-size:10px;color:var(--muted);margin-bottom:14px">💳 inclui compras já agendadas p/ este ciclo que ainda não venceram — por isso pode ser maior que a "Fatura em aberto" lá em cima.</div>
   <div class="stitle">Gastos por categoria <span style="font-size:10px;color:var(--muted)">(clique para ver detalhes)</span></div>
   <div class="card">
@@ -406,7 +405,10 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     </select>
     <select id="formaFilter" onchange="renderRegistros()" style="max-width:150px">
       <option value="">Todas as formas</option>
-      <option value="cartao">💳 Cartão de crédito</option>
+      <option value="cartao">💳 Cartão de crédito (todos)</option>
+      <option value="cartao:santander">💳 Santander</option>
+      <option value="cartao:nubank">💳 Nubank</option>
+      <option value="cartao:sicredi">💳 Sicredi</option>
       <option value="outro">💵 Pix / Débito</option>
     </select>
   </div>
@@ -481,12 +483,6 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     <button class="sbtn" onclick="pagarFatura()">💳 Marcar fatura anterior como paga</button>
     <div style="font-size:11px;color:var(--muted);margin:14px 0 6px;line-height:1.5;border-top:1px solid var(--border);padding-top:12px">Gastos de cartão registrados ANTES dessa atualização não ficaram marcados como pendentes automaticamente. Se os gastos do ciclo atual ainda não foram pagos, corrija de uma vez:</div>
     <button class="secbtn" onclick="corrigirPendenciasCicloAtual()">Corrigir pendências do ciclo atual</button>
-  </div>
-  <div class="stitle" style="margin-top:14px">Meta do Cartão Santander</div>
-  <div class="card">
-    <div style="font-size:12px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Quanto você pretende gastar por ciclo no cartão de crédito. Toda compra registrada como cartão entra nessa meta automaticamente, e a tela inicial mostra o % usado. Deixe em branco para não ter meta.</div>
-    <div class="field"><label>Meta mensal do Cartão Santander (R$)</label><input type="number" id="cfgMeta_cartao" placeholder="0,00" step="0.01" inputmode="decimal"></div>
-    <button class="sbtn" onclick="salvarMetaCartao()">Salvar meta</button>
   </div>
   <div class="stitle" style="margin-top:14px">Configuração do ciclo</div>
   <div class="card">
@@ -589,6 +585,8 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
         <button class="tbtn" id="fmCartao" onclick="setForma('cartao')">💳 Cartão de crédito</button>
         <button class="tbtn" id="fmOutro" onclick="setForma('outro')">💵 Débito / Pix / Dinheiro</button>
       </div>
+      <div id="inpCartaoBox" style="display:none;margin-top:8px"><label style="font-size:11px;color:var(--muted2)">Qual cartão?</label>
+        <select id="inpCartao"><option value="santander">Santander</option><option value="nubank">Nubank</option><option value="sicredi">Sicredi</option></select></div>
     </div>
     <div class="field" id="fStatus">
       <label id="lblStatus">Status</label>
@@ -645,6 +643,8 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
         <button class="tbtn" id="eFmCartao" onclick="setEditForma('cartao')">💳 Cartão de crédito</button>
         <button class="tbtn" id="eFmOutro" onclick="setEditForma('outro')">💵 Débito / Pix / Dinheiro</button>
       </div>
+      <div id="eInpCartaoBox" style="display:none;margin-top:8px"><label style="font-size:11px;color:var(--muted2)">Qual cartão?</label>
+        <select id="eInpCartao"><option value="santander">Santander</option><option value="nubank">Nubank</option><option value="sicredi">Sicredi</option></select></div>
     </div>
     <div class="field">
       <label>Status</label>
@@ -799,29 +799,6 @@ function salvarSaldoInicial(){
   alert('Saldo inicial salvo! O disponível já foi recalculado.');
   render();renderConfig();
 }
-// META DO CARTÃO SANTANDER — fica em fin_metas.cartao (sincroniza com o Firebase).
-// "Usado" = soma de TODO gasto do ciclo atual com forma=cartão (já lançado + parcelas/compras agendadas).
-// Não há lançamento manual na meta: ela sempre é calculada a partir dos registros.
-function getMetaCartao(){var v=getMetas().cartao;return(typeof v==='number'&&v>0)?v:0;}
-function salvarMetaCartao(){
-  var m=getMetas();
-  var v=parseFloat(String(document.getElementById('cfgMeta_cartao').value).replace(',','.'));
-  if(isNaN(v)||v<=0)delete m.cartao;else m.cartao=v;
-  setMetas(m);alert('Meta salva!');render();
-}
-function renderPlano(){
-  var el=document.getElementById('planoCiclo');if(!el)return;
-  var cr=getCicloRange();var usado=0;
-  getData().filter(function(r){return r.tipo==='gasto'&&(r.forma||'cartao')==='cartao'&&inRange(r,cr.from,cr.to);}).forEach(function(r){usado+=r.valor;});
-  var meta=getMetaCartao();
-  var h='<div class="kpi"><div class="kpi-lbl">💳 Cartão Santander · ciclo atual</div><div class="kpi-val" style="color:var(--red)">'+fmt(usado)+'</div>';
-  if(!meta){el.innerHTML=h+'<div style="font-size:11px;color:var(--muted);margin-top:4px">sem meta · defina em Config</div></div>';return;}
-  var p=usado/meta*100;var cls=p>=100?'over':p>=80?'warn':'ok';
-  h+='<div style="font-size:11px;color:var(--muted2);margin-top:4px">de '+fmt(meta)+' · '+p.toFixed(0)+'% usado</div>';
-  h+='<div class="prog-bg" style="margin-top:8px"><div class="prog-fill prog-'+cls+'" style="width:'+Math.min(p,100).toFixed(1)+'%"></div></div>';
-  h+='<div style="font-size:11px;margin-top:6px;color:'+(usado>meta?'var(--red)':'var(--green)')+'">'+(usado>meta?'estourou '+fmt(usado-meta):'ainda pode gastar '+fmt(meta-usado))+'</div></div>';
-  el.innerHTML=h;
-}
 function salvarCiclo(){
   var v=parseInt(document.getElementById('cfgDiaCiclo').value);
   if(!v||v<1||v>28){alert('Digite um dia entre 1 e 28.');return;}
@@ -845,7 +822,7 @@ function checkAlertas(){
     alertas.push('💳 Fatura de ciclo anterior pendente: '+fmt(totalF)+' — marque como paga em Config');
   }
   Object.keys(mg).forEach(function(k){
-    var meta=mg[k];var g=byCat[k]||0;var pct=g/meta*100;
+    var meta=mg[k];var g=gastoDaMeta(k,byCat,all);var pct=g/meta*100;
     var c=cg[k]||CATS.outros;
     if(pct>=100)alertas.push(c.icon+' '+c.label+' estourou a meta ('+pct.toFixed(0)+'%)');
     else if(pct>=80)alertas.push(c.icon+' '+c.label+' em '+pct.toFixed(0)+'% da meta');
@@ -905,6 +882,7 @@ function setForma(f){
   curForma=f;
   document.getElementById('fmCartao').className='tbtn'+(f==='cartao'?' ai':'');
   document.getElementById('fmOutro').className='tbtn'+(f==='outro'?' ai':'');
+  document.getElementById('inpCartaoBox').style.display=f==='cartao'?'block':'none';
   setStatus(f==='cartao'?'pendente':'pago');
   document.getElementById('statusHint').textContent=f==='cartao'?'Fica como dívida em aberto até você pagar a fatura (aba Config).':'Sai da conta sozinho na data marcada — conta automaticamente quando o dia chegar, não precisa marcar "Pago".';
 }
@@ -932,14 +910,14 @@ function salvarReg(){
   if(isRec){
     var n=parseInt(document.getElementById('inpRec').value);
     if(!n||n<2){alert('Mínimo 2 meses.');return;}
-    for(var i=0;i<n;i++){var m=new Date(dt.getFullYear(),dt.getMonth()+i,dt.getDate());var ds=m.getFullYear()+'-'+String(m.getMonth()+1).padStart(2,'0')+'-'+String(m.getDate()).padStart(2,'0');d.push({id:Date.now()+i,tipo:curTipo,valor:valor,desc:desc,cat:cat,data:ds,rec:true,status:curStatus,forma:forma});}
+    for(var i=0;i<n;i++){var m=new Date(dt.getFullYear(),dt.getMonth()+i,dt.getDate());var ds=m.getFullYear()+'-'+String(m.getMonth()+1).padStart(2,'0')+'-'+String(m.getDate()).padStart(2,'0');d.push({id:Date.now()+i,tipo:curTipo,valor:valor,desc:desc,cat:cat,data:ds,rec:true,status:curStatus,forma:forma,cartao:(forma==='cartao'?document.getElementById('inpCartao').value:undefined)});}
   } else if(isPar){
     var np=parseInt(document.getElementById('inpPar').value);
     if(!np||np<2){alert('Mínimo 2 parcelas.');return;}
     var vp=Math.round(valor/np*100)/100;
-    for(var j=0;j<np;j++){var mp=new Date(dt.getFullYear(),dt.getMonth()+j,dt.getDate());var dsp=mp.getFullYear()+'-'+String(mp.getMonth()+1).padStart(2,'0')+'-'+String(mp.getDate()).padStart(2,'0');d.push({id:Date.now()+j,tipo:curTipo,valor:vp,desc:desc+' ('+(j+1)+'/'+np+')',cat:cat,data:dsp,par:true,status:curStatus,forma:forma});}
+    for(var j=0;j<np;j++){var mp=new Date(dt.getFullYear(),dt.getMonth()+j,dt.getDate());var dsp=mp.getFullYear()+'-'+String(mp.getMonth()+1).padStart(2,'0')+'-'+String(mp.getDate()).padStart(2,'0');d.push({id:Date.now()+j,tipo:curTipo,valor:vp,desc:desc+' ('+(j+1)+'/'+np+')',cat:cat,data:dsp,par:true,status:curStatus,forma:forma,cartao:(forma==='cartao'?document.getElementById('inpCartao').value:undefined)});}
   } else {
-    d.push({id:Date.now(),tipo:curTipo,valor:valor,desc:desc,cat:cat,data:data,status:curStatus,forma:forma});
+    d.push({id:Date.now(),tipo:curTipo,valor:valor,desc:desc,cat:cat,data:data,status:curStatus,forma:forma,cartao:(forma==='cartao'?document.getElementById('inpCartao').value:undefined)});
   }
   setData(d);document.getElementById('ovNew').classList.remove('open');render();
 }
@@ -954,14 +932,14 @@ function abrirEdit(id){
   sG.innerHTML='';sI.innerHTML='';var k;
   for(k in cg){var o=document.createElement('option');o.value=k;o.textContent=cg[k].icon+' '+cg[k].label;sG.appendChild(o);}
   for(k in ci){var o2=document.createElement('option');o2.value=k;o2.textContent=ci[k].icon+' '+ci[k].label;sI.appendChild(o2);}
-  editForma=reg.forma||'cartao';setEditTipo(reg.tipo);setEditRec(false);setEditStatus(reg.status||'pago');
+  editForma=reg.forma||'cartao';document.getElementById('eInpCartao').value=reg.cartao||'santander';setEditTipo(reg.tipo);setEditRec(false);setEditStatus(reg.status||'pago');
   document.getElementById('eVal').value=reg.valor;document.getElementById('eDesc').value=reg.desc;document.getElementById('eData').value=reg.data;document.getElementById('eRecMeses').value='12';
   if(reg.tipo==='inv')document.getElementById('eInvCat').value=reg.cat;else document.getElementById('eCat').value=reg.cat;
   document.getElementById('ovEdit').classList.add('open');
 }
 
 function setEditTipo(t){editTipo=t;document.getElementById('eTG').className='tbtn'+(t==='gasto'?' ag':'');document.getElementById('eTR').className='tbtn'+(t==='receita'?' ar':'');document.getElementById('eTI').className='tbtn'+(t==='inv'?' ai':'');document.getElementById('eFCat').style.display=t==='inv'?'none':'block';document.getElementById('eFInv').style.display=t==='inv'?'block':'none';document.getElementById('eFForma').style.display=t==='gasto'?'block':'none';if(t==='gasto')setEditForma(editForma);}
-function setEditForma(f){editForma=f;document.getElementById('eFmCartao').className='tbtn'+(f==='cartao'?' ai':'');document.getElementById('eFmOutro').className='tbtn'+(f==='outro'?' ai':'');}
+function setEditForma(f){editForma=f;document.getElementById('eFmCartao').className='tbtn'+(f==='cartao'?' ai':'');document.getElementById('eFmOutro').className='tbtn'+(f==='outro'?' ai':'');document.getElementById('eInpCartaoBox').style.display=f==='cartao'?'block':'none';}
 function setEditRec(v){editIsRec=v;document.getElementById('eRecN').className='tbtn'+(v?'':' ar');document.getElementById('eRecS').className='tbtn'+(v?' ap':'');document.getElementById('eRecField').style.display=v?'block':'none';}
 
 var curStatus='pago';
@@ -983,9 +961,9 @@ function salvarEdit(){
     var n=parseInt(document.getElementById('eRecMeses').value);
     if(!n||n<1){alert('Digite o número de meses.');return;}
     d=d.filter(function(r){return r.id!==editId;});
-    for(var i=0;i<n;i++){var m=new Date(dt.getFullYear(),dt.getMonth()+i,dt.getDate());var ds=m.getFullYear()+'-'+String(m.getMonth()+1).padStart(2,'0')+'-'+String(m.getDate()).padStart(2,'0');d.push({id:Date.now()+i,tipo:editTipo,valor:valor,desc:desc,cat:cat,data:ds,rec:true,status:editStatus,forma:forma});}
+    for(var i=0;i<n;i++){var m=new Date(dt.getFullYear(),dt.getMonth()+i,dt.getDate());var ds=m.getFullYear()+'-'+String(m.getMonth()+1).padStart(2,'0')+'-'+String(m.getDate()).padStart(2,'0');d.push({id:Date.now()+i,tipo:editTipo,valor:valor,desc:desc,cat:cat,data:ds,rec:true,status:editStatus,forma:forma,cartao:(forma==='cartao'?document.getElementById('eInpCartao').value:undefined)});}
   } else {
-    for(var j=0;j<d.length;j++){if(d[j].id===editId){d[j].tipo=editTipo;d[j].valor=valor;d[j].desc=desc;d[j].cat=cat;d[j].data=data;d[j].status=editStatus;d[j].forma=forma;break;}}
+    for(var j=0;j<d.length;j++){if(d[j].id===editId){d[j].tipo=editTipo;d[j].valor=valor;d[j].desc=desc;d[j].cat=cat;d[j].data=data;d[j].status=editStatus;d[j].forma=forma;d[j].cartao=(forma==='cartao'?document.getElementById('eInpCartao').value:undefined);break;}}
   }
   setData(d);document.getElementById('ovEdit').classList.remove('open');render();renderRegistros();
 }
@@ -1076,7 +1054,6 @@ function pagarFatura(){
 
 // RENDER
 function render(){
-  renderPlano();
   document.getElementById('periodLabel').textContent=getPeriodoLabel();
   var range=getPeriodoRange();
   var all=getData().filter(function(r){return inRange(r,range.from,range.to);});
@@ -1153,12 +1130,20 @@ function showCatDetail(k,byCat,cg,range){
   setTimeout(function(){painel.scrollIntoView({behavior:'smooth',block:'nearest'});},100);
 }
 
+// Metas por cartão (nome da categoria com Santander/Nubank/Sicredi): alimentadas por TODA compra registrada como cartão de crédito (qualquer categoria),
+// além de qualquer gasto lançado direto na categoria "Cartão Santander". As demais metas continuam por categoria.
+function cartaoDaMeta(k){var c=getCG()[k];if(!c)return null;var l=c.label.toLowerCase();return /santander/.test(l)?'santander':/nubank/.test(l)?'nubank':/sicredi/.test(l)?'sicredi':null;}
+function gastoDaMeta(k,byCat,all){
+  var cd=cartaoDaMeta(k);if(!cd)return byCat[k]||0;
+  // registros antigos (sem cartão informado) contam como Santander
+  return all.filter(function(r){return r.tipo==='gasto'&&((r.forma||'cartao')==='cartao'&&(r.cartao||'santander')===cd||r.cat===k);}).reduce(function(a,r){return a+r.valor;},0);
+}
 function renderMetasResumo(byCat,cg,all){
   var metas=getMetas();var mg=metas.gastos||{};
   var mgEl=document.getElementById('metaGastoRes');
   if(!Object.keys(mg).length){mgEl.innerHTML='<div class="empty"><div class="empty-i">🎯</div>Configure metas na aba Config.</div>';}
   else{mgEl.innerHTML=Object.keys(mg).map(function(k){
-    var meta=mg[k];var g=byCat[k]||0;var p=Math.min(g/meta*100,100);var cls=p>=100?'over':p>=80?'warn':'ok';var c=cg[k]||CATS.outros;
+    var meta=mg[k];var g=gastoDaMeta(k,byCat,all);var p=Math.min(g/meta*100,100);var cls=p>=100?'over':p>=80?'warn':'ok';var c=cg[k]||CATS.outros;
     return '<div class="prog-row"><div class="prog-top"><div class="prog-name">'+c.icon+' '+c.label+(p>=80?' ⚠️':'')+'</div><div class="prog-vals">'+fmt(g)+' / '+fmt(meta)+'</div></div><div class="prog-bg"><div class="prog-fill prog-'+cls+'" style="width:'+p.toFixed(1)+'%"></div></div><div class="prog-pct">'+p.toFixed(0)+'% utilizado</div></div>';
   }).join('');}
   var mi=metas.inv||{};var ci=getCI();
@@ -1198,7 +1183,7 @@ function renderRegistros(){
   if(tipoF)all=all.filter(function(r){return r.tipo===tipoF;});
   if(statusF)all=all.filter(function(r){return (r.status||'pago')===statusF;});
   var formaF=document.getElementById('formaFilter')?document.getElementById('formaFilter').value:'';
-  if(formaF)all=all.filter(function(r){return r.tipo==='gasto'&&(r.forma||'cartao')===formaF;});
+  if(formaF)all=all.filter(function(r){if(r.tipo!=='gasto')return false;var pf=formaF.split(':');if((r.forma||'cartao')!==pf[0])return false;return !pf[1]||(r.cartao||'santander')===pf[1];});
   all.sort(function(a,b){return new Date(b.data)-new Date(a.data);});
   var el=document.getElementById('registrosList');
   if(!all.length){el.innerHTML='<div class="empty"><div class="empty-i">📋</div>Nenhum registro no período</div>';return;}
@@ -1210,7 +1195,7 @@ function renderRegistros(){
     var badge=isG?'badge-gasto':isI?'badge-inv':'badge-receita';
     var blbl=isG?'gasto':isI?'invest.':'receita';
     var statusBadge=(r.status==='pendente')?'<span style="font-size:10px;color:var(--gold)">⏳</span>':'';
-    var formaLbl=isG?(((r.forma||'cartao')==='cartao')?' · 💳':' · 💵'):'';
+    var NC={santander:'Santander',nubank:'Nubank',sicredi:'Sicredi'};var formaLbl=isG?(((r.forma||'cartao')==='cartao')?' · 💳 '+NC[r.cartao||'santander']:' · 💵'):'';
     var dt=toDate(r.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
     return '<div class="item"><div class="iico" style="background:'+cat.color+'20">'+cat.icon+'</div><div class="ibody"><div class="iname">'+r.desc+' '+statusBadge+'</div><div class="imeta">'+cat.label+' · '+dt+formaLbl+' · <span class="badge '+badge+'">'+blbl+'</span></div></div><div class="ival" style="color:'+cor+'">'+fmt(r.valor)+'</div><button class="idel" style="font-size:14px;color:var(--muted2)" data-id="'+r.id+'">✏️</button><button class="idel" data-del="'+r.id+'">×</button></div>';
   }).join('')+'</div>';
@@ -1305,7 +1290,6 @@ function renderInvest(){
 }
 
 function renderConfig(){
-  var ic=document.getElementById('cfgMeta_cartao');if(ic&&!ic.matches(':focus'))ic.value=getMetaCartao()||'';
   document.getElementById('cfgDiaCiclo').value=getDiaCiclo();
   var saldoIni=getSaldoInicial();
   var iniValEl=document.getElementById('cfgSaldoIniVal');var iniDataEl=document.getElementById('cfgSaldoIniData');
