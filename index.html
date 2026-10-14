@@ -367,6 +367,7 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     <div class="kpi"><div class="kpi-lbl">💳 Cartão</div><div class="kpi-val" id="gastoCartaoBig" style="color:var(--red)">R$ 0</div></div>
     <div class="kpi"><div class="kpi-lbl">💵 Débito / Pix / Dinheiro</div><div class="kpi-val" id="gastoOutroBig" style="color:var(--red)">R$ 0</div></div>
   </div>
+  <div class="kpi-row" id="planoCiclo" style="margin:0 0 6px;grid-template-columns:1fr"></div>
   <div style="font-size:10px;color:var(--muted);margin-bottom:14px">💳 inclui compras já agendadas p/ este ciclo que ainda não venceram — por isso pode ser maior que a "Fatura em aberto" lá em cima.</div>
   <div class="stitle">Gastos por categoria <span style="font-size:10px;color:var(--muted)">(clique para ver detalhes)</span></div>
   <div class="card">
@@ -480,6 +481,12 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     <button class="sbtn" onclick="pagarFatura()">💳 Marcar fatura anterior como paga</button>
     <div style="font-size:11px;color:var(--muted);margin:14px 0 6px;line-height:1.5;border-top:1px solid var(--border);padding-top:12px">Gastos de cartão registrados ANTES dessa atualização não ficaram marcados como pendentes automaticamente. Se os gastos do ciclo atual ainda não foram pagos, corrija de uma vez:</div>
     <button class="secbtn" onclick="corrigirPendenciasCicloAtual()">Corrigir pendências do ciclo atual</button>
+  </div>
+  <div class="stitle" style="margin-top:14px">Meta do Cartão Santander</div>
+  <div class="card">
+    <div style="font-size:12px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Quanto você pretende gastar por ciclo no cartão de crédito. Toda compra registrada como cartão entra nessa meta automaticamente, e a tela inicial mostra o % usado. Deixe em branco para não ter meta.</div>
+    <div class="field"><label>Meta mensal do Cartão Santander (R$)</label><input type="number" id="cfgMeta_cartao" placeholder="0,00" step="0.01" inputmode="decimal"></div>
+    <button class="sbtn" onclick="salvarMetaCartao()">Salvar meta</button>
   </div>
   <div class="stitle" style="margin-top:14px">Configuração do ciclo</div>
   <div class="card">
@@ -792,6 +799,29 @@ function salvarSaldoInicial(){
   alert('Saldo inicial salvo! O disponível já foi recalculado.');
   render();renderConfig();
 }
+// META DO CARTÃO SANTANDER — fica em fin_metas.cartao (sincroniza com o Firebase).
+// "Usado" = soma de TODO gasto do ciclo atual com forma=cartão (já lançado + parcelas/compras agendadas).
+// Não há lançamento manual na meta: ela sempre é calculada a partir dos registros.
+function getMetaCartao(){var v=getMetas().cartao;return(typeof v==='number'&&v>0)?v:0;}
+function salvarMetaCartao(){
+  var m=getMetas();
+  var v=parseFloat(String(document.getElementById('cfgMeta_cartao').value).replace(',','.'));
+  if(isNaN(v)||v<=0)delete m.cartao;else m.cartao=v;
+  setMetas(m);alert('Meta salva!');render();
+}
+function renderPlano(){
+  var el=document.getElementById('planoCiclo');if(!el)return;
+  var cr=getCicloRange();var usado=0;
+  getData().filter(function(r){return r.tipo==='gasto'&&(r.forma||'cartao')==='cartao'&&inRange(r,cr.from,cr.to);}).forEach(function(r){usado+=r.valor;});
+  var meta=getMetaCartao();
+  var h='<div class="kpi"><div class="kpi-lbl">💳 Cartão Santander · ciclo atual</div><div class="kpi-val" style="color:var(--red)">'+fmt(usado)+'</div>';
+  if(!meta){el.innerHTML=h+'<div style="font-size:11px;color:var(--muted);margin-top:4px">sem meta · defina em Config</div></div>';return;}
+  var p=usado/meta*100;var cls=p>=100?'over':p>=80?'warn':'ok';
+  h+='<div style="font-size:11px;color:var(--muted2);margin-top:4px">de '+fmt(meta)+' · '+p.toFixed(0)+'% usado</div>';
+  h+='<div class="prog-bg" style="margin-top:8px"><div class="prog-fill prog-'+cls+'" style="width:'+Math.min(p,100).toFixed(1)+'%"></div></div>';
+  h+='<div style="font-size:11px;margin-top:6px;color:'+(usado>meta?'var(--red)':'var(--green)')+'">'+(usado>meta?'estourou '+fmt(usado-meta):'ainda pode gastar '+fmt(meta-usado))+'</div></div>';
+  el.innerHTML=h;
+}
 function salvarCiclo(){
   var v=parseInt(document.getElementById('cfgDiaCiclo').value);
   if(!v||v<1||v>28){alert('Digite um dia entre 1 e 28.');return;}
@@ -1046,6 +1076,7 @@ function pagarFatura(){
 
 // RENDER
 function render(){
+  renderPlano();
   document.getElementById('periodLabel').textContent=getPeriodoLabel();
   var range=getPeriodoRange();
   var all=getData().filter(function(r){return inRange(r,range.from,range.to);});
@@ -1274,6 +1305,7 @@ function renderInvest(){
 }
 
 function renderConfig(){
+  var ic=document.getElementById('cfgMeta_cartao');if(ic&&!ic.matches(':focus'))ic.value=getMetaCartao()||'';
   document.getElementById('cfgDiaCiclo').value=getDiaCiclo();
   var saldoIni=getSaldoInicial();
   var iniValEl=document.getElementById('cfgSaldoIniVal');var iniDataEl=document.getElementById('cfgSaldoIniData');
