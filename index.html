@@ -891,6 +891,8 @@ function goPage(name,btn){
   document.getElementById('pg-'+name).classList.add('active');
   btn.classList.add('active');
   document.getElementById('fabBtn').style.display=name==='config'?'none':'flex';
+  var kr=document.querySelector('.header .kpi-row');if(kr)kr.style.display=name==='resumo'?'grid':'none';
+  var pb=document.getElementById('periodBtn');if(pb)pb.style.display=(name==='analise'||name==='config')?'none':'flex';
   if(name==='resumo')renderResumo();
   if(name==='registros')renderRegistros();
   if(name==='analise')renderAnalise();
