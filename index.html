@@ -514,6 +514,14 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     <div style="font-size:12px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Cada cartão fecha num dia. Compras antes do fechamento contam neste ciclo, depois contam no próximo. Deixe em branco para usar o dia do ciclo acima.</div>
     <div class="mgrid" id="cartoesEdit"></div>
     <button class="sbtn" onclick="salvarCartoes()">Salvar fechamentos</button>
+    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Adicionar novo cartão</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="novoCartaoNome" placeholder="Nome (ex.: Inter, C6)" style="flex:1;min-width:140px;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-size:14px;outline:none">
+        <input id="novoCartaoDia" type="number" min="1" max="28" placeholder="Dia fecha" inputmode="numeric" style="width:96px;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-size:14px;outline:none">
+      </div>
+      <button class="sbtn" style="margin-top:10px" onclick="adicionarCartao()">+ Adicionar cartão</button>
+    </div>
   </div>
   <div class="stitle" style="margin-top:14px">Aparência</div>
   <div class="card">
@@ -559,6 +567,12 @@ body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-ser
     <div class="set-row">
       <div><div class="set-lbl">Usuário logado</div><div class="set-sub" id="userInfoConfig"></div></div>
       <button class="set-btn danger" onclick="fazerLogout()">Sair</button>
+    </div>
+    <div class="set-row">
+      <div style="min-width:0"><div class="set-lbl">Endereço do app</div><div class="set-sub" id="appEndereco" style="word-break:break-all"></div></div>
+    </div>
+    <div class="set-row">
+      <div><div class="set-lbl">Versão</div><div class="set-sub">2026-11-01c (Resumo novo, Invest e fechamento por cartão)</div></div>
     </div>
   </div>
   <div class="stitle" style="margin-top:14px">Dados</div>
@@ -723,6 +737,22 @@ function getSaldoInicial(){try{var s=JSON.parse(localStorage.getItem('fin_saldo_
 function setSaldoInicialCfg(valor,data,salvoEm){localStorage.setItem('fin_saldo_inicial',JSON.stringify({valor:valor,data:data,salvoEm:salvoEm||Date.now()}));if(typeof syncToFirebase==='function')syncToFirebase();}
 function getCartoes(){try{var c=JSON.parse(localStorage.getItem('fin_cartoes'));return(c&&typeof c==='object')?c:{};}catch(e){return{};}}
 function setCartoes(c){localStorage.setItem('fin_cartoes',JSON.stringify(c));if(typeof syncToFirebase==='function')syncToFirebase();}
+var CARTOES_BASE={santander:'Santander',nubank:'Nubank',sicredi:'Sicredi'};
+function getListaCartoes(){var r={};for(var k in CARTOES_BASE)r[k]=CARTOES_BASE[k];var n=getCartoes()._nomes||{};for(var j in n)r[j]=n[j];return r;}
+function fillCartaoSelects(){var L=getListaCartoes();var opts=Object.keys(L).map(function(k){return '<option value="'+k+'">'+esc(L[k])+'</option>';}).join('');
+  ['inpCartao','eInpCartao'].forEach(function(id){var el=document.getElementById(id);if(!el)return;var v=el.value;el.innerHTML=opts;if(L[v])el.value=v;});
+  var f=document.getElementById('formaFilter');if(f){var v2=f.value;f.innerHTML='<option value="">Todas as formas</option><option value="cartao">💳 Cartão de crédito (todos)</option>'+Object.keys(L).map(function(k){return '<option value="cartao:'+k+'">💳 '+esc(L[k])+'</option>';}).join('')+'<option value="outro">💵 Pix / Débito</option>';f.value=v2;}}
+function adicionarCartao(){var inp=document.getElementById('novoCartaoNome');var nome=(inp.value||'').trim();if(!nome){alert('Digite o nome do cartão.');return;}
+  var L=getListaCartoes();for(var k in L){if(L[k].toLowerCase()===nome.toLowerCase()){alert('Esse cartão já existe.');return;}}
+  var c=getCartoes();if(!c._nomes)c._nomes={};var id='x'+Date.now().toString(36);c._nomes[id]=nome;
+  var dia=parseInt(document.getElementById('novoCartaoDia').value);if(dia>=1&&dia<=28)c[id]=dia;
+  setCartoes(c);
+  var cats=getCustCats();var ja=false;for(var q in cats.gastos){if(cats.gastos[q].label.toLowerCase().indexOf(nome.toLowerCase())>-1)ja=true;}
+  if(!ja){cats.gastos['c_'+Date.now()]={label:'Cartão '+nome,icon:'💳',color:COLORS[Math.floor(Math.random()*COLORS.length)]};setCustCats(cats);}
+  inp.value='';document.getElementById('novoCartaoDia').value='';fillCartaoSelects();render();renderConfig();}
+function removerCartao(id){var usado=getData().some(function(r){return r.cartao===id;});
+  if(usado){alert('Esse cartão tem lançamentos e não pode ser removido.');return;}
+  if(!confirm('Remover este cartão?'))return;var c=getCartoes();if(c._nomes)delete c._nomes[id];delete c[id];setCartoes(c);fillCartaoSelects();render();renderConfig();}
 function getDiaCartao(cd){var d=parseInt(getCartoes()[cd]);return(d>=1&&d<=28)?d:getDiaCiclo();}
 function getMetasVisiveis(){try{var v=JSON.parse(localStorage.getItem('fin_metas_visiveis'));return Array.isArray(v)?v:null;}catch(e){return null;}}
 function TXT(hex){if(!document.body.classList.contains('light')||!/^#[0-9a-f]{6}$/i.test(hex))return hex;var n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255,k=0.5,t=[20,26,41];return 'rgb('+Math.round(r*(1-k)+t[0]*k)+','+Math.round(g*(1-k)+t[1]*k)+','+Math.round(b*(1-k)+t[2]*k)+')';}
@@ -1098,7 +1128,7 @@ function pagarFatura(){
 }
 
 // RENDER
-function render(){
+function render(){try{fillCartaoSelects();}catch(e){}
   document.getElementById('periodLabel').textContent=getPeriodoLabel();
   var range=getPeriodoRange();
   var all=getData().filter(function(r){return inRange(r,range.from,range.to);});
@@ -1135,7 +1165,7 @@ function renderResumo(){
   var legEl=document.getElementById('pieLegend');legEl.innerHTML='';
   catKeys.forEach(function(k,i){
     var div=document.createElement('div');div.className='leg-item';
-    div.innerHTML='<div class="leg-dot" style="background:'+colors[i]+'"></div>'+labels[i]+' '+(total>0?(data[i]/total*100).toFixed(0)+'%':'');
+    div.innerHTML='<div class="leg-dot" style="background:'+colors[i]+'"></div>'+labels[i];
     div.addEventListener('click',function(){showCatDetail(k,byCat,cg,range);});
     legEl.appendChild(div);
   });
@@ -1148,7 +1178,7 @@ function renderResumo(){
   canvas.style.display=data.length?'block':'none';
   if(pieEmpty)pieEmpty.style.display=data.length?'none':'block';
   if(data.length){
-    charts.pie=new Chart(canvas,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:BC(),hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',onClick:function(e,els){if(els&&els.length>0)showCatDetail(catKeys[els[0].index],byCat,cg,range);},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+fmt(c.raw)+' (clique para detalhes)';}}}}}});
+    charts.pie=new Chart(canvas,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:BC(),hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',onClick:function(e,els){if(els&&els.length>0)showCatDetail(catKeys[els[0].index],byCat,cg,range);},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+fmt(c.raw)+(total>0?' ('+(c.raw/total*100).toFixed(0)+'%)':'')+' · clique para detalhes';}}}}}});
   } else {
     canvas.style.display='none';
   }
@@ -1172,7 +1202,7 @@ function showCatDetail(k,byCat,cg,range){
 
 // Metas por cartão (nome da categoria com Santander/Nubank/Sicredi): alimentadas por TODA compra registrada como cartão de crédito (qualquer categoria),
 // além de qualquer gasto lançado direto na categoria "Cartão Santander". As demais metas continuam por categoria.
-function cartaoDaMeta(k){var c=getCG()[k];if(!c)return null;var l=c.label.toLowerCase();return /santander/.test(l)?'santander':/nubank/.test(l)?'nubank':/sicredi/.test(l)?'sicredi':null;}
+function cartaoDaMeta(k){var c=getCG()[k];if(!c)return null;var l=c.label.toLowerCase();var L=getListaCartoes();var ks=Object.keys(L);for(var i=0;i<ks.length;i++){if(l.indexOf(L[ks[i]].toLowerCase())>-1)return ks[i];}return null;}
 function gastoDaMeta(k,byCat,all){
   var cd=cartaoDaMeta(k);if(!cd)return byCat[k]||0;
   // registros antigos (sem cartão informado) contam como Santander
@@ -1215,8 +1245,9 @@ function renderFixosVar(all){
   var fx=g.filter(function(r){return r.rec||r.par;}).reduce(function(a,r){return a+r.valor;},0);
   var vr=g.filter(function(r){return !(r.rec||r.par);}).reduce(function(a,r){return a+r.valor;},0);
   var tot=fx+vr;var pf=tot>0?Math.round(fx/tot*100):0;var pv=tot>0?100-pf:0;
-  el.innerHTML='<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:12px"><div><div style="font-size:11px;color:var(--muted)">Custos fixos</div><div style="font-family:JetBrains Mono,monospace;font-size:17px;font-weight:500;color:var(--gold)">'+fmt(fx)+' <span style="font-size:11px;color:var(--muted)">· '+pf+'%</span></div></div><div style="text-align:right"><div style="font-size:11px;color:var(--muted)">Custos variáveis</div><div style="font-family:JetBrains Mono,monospace;font-size:17px;font-weight:500;color:var(--blue)">'+fmt(vr)+' <span style="font-size:11px;color:var(--muted)">· '+pv+'%</span></div></div></div>'
-   +'<div style="display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--s3)"><div style="width:'+pf+'%;background:var(--gold)"></div><div style="width:'+pv+'%;background:var(--blue)"></div></div>';
+  el.innerHTML='<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:12px"><div><div style="font-size:11px;color:var(--muted)">Custos fixos</div><div style="font-family:JetBrains Mono,monospace;font-size:17px;font-weight:500;color:var(--gold)">'+fmt(fx)+'</div></div><div style="text-align:right"><div style="font-size:11px;color:var(--muted)">Custos variáveis</div><div style="font-family:JetBrains Mono,monospace;font-size:17px;font-weight:500;color:var(--blue)">'+fmt(vr)+'</div></div></div>'
+   +'<div style="display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--s3)"><div style="width:'+pf+'%;background:var(--gold)"></div><div style="width:'+pv+'%;background:var(--blue)"></div></div>'
+   +'<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;font-weight:600;color:var(--muted2)"><span>'+pf+'%</span><span>'+pv+'%</span></div>';
 }
 
 // QUANTO AINDA POSSO GASTAR
@@ -1323,7 +1354,7 @@ function renderRegCat(){
 }
 function renderRegPag(){
   var el=document.getElementById('regPagBox');if(!el)return;
-  var cur=getPeriodoRange();var NC={santander:'Santander',nubank:'Nubank',sicredi:'Sicredi'};
+  var cur=getPeriodoRange();var NC=getListaCartoes();
   var gs=getData().filter(function(r){return r.tipo==='gasto'&&inRange(r,cur.from,cur.to);});
   var porCartao={};var cartao=0,outro=0;
   gs.forEach(function(r){if((r.forma||'cartao')==='cartao'){var c=r.cartao||'santander';porCartao[c]=(porCartao[c]||0)+r.valor;cartao+=r.valor;}else outro+=r.valor;});
@@ -1363,7 +1394,7 @@ function renderRegistros(){
     var badge=isG?'badge-gasto':isI?'badge-inv':'badge-receita';
     var blbl=isG?'gasto':isI?'invest.':'receita';
     var statusBadge=(r.status==='pendente')?'<span style="font-size:10px;color:var(--gold)">⏳</span>':'';
-    var NC={santander:'Santander',nubank:'Nubank',sicredi:'Sicredi'};var formaLbl=isG?(((r.forma||'cartao')==='cartao')?' · 💳 '+NC[r.cartao||'santander']:' · 💵'):'';
+    var NC=getListaCartoes();var formaLbl=isG?(((r.forma||'cartao')==='cartao')?' · 💳 '+NC[r.cartao||'santander']:' · 💵'):'';
     var dt=toDate(r.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
     return '<div class="item"><div class="iico" style="background:'+cat.color+'20">'+cat.icon+'</div><div class="ibody"><div class="iname">'+r.desc+' '+statusBadge+'</div><div class="imeta">'+cat.label+' · '+dt+formaLbl+' · <span class="badge '+badge+'">'+blbl+'</span></div></div><div class="ival" style="color:'+cor+'">'+fmt(r.valor)+'</div><button class="idel" style="font-size:14px;color:var(--muted2)" data-id="'+r.id+'">✏️</button><button class="idel" data-del="'+r.id+'">×</button></div>';
   }).join('')+'</div>';
@@ -1568,6 +1599,7 @@ function renderInvest(){
 }
 
 function renderConfig(){
+  var ae=document.getElementById('appEndereco');if(ae)ae.textContent=location.origin+location.pathname;
   document.getElementById('cfgDiaCiclo').value=getDiaCiclo();
   var saldoIni=getSaldoInicial();
   var iniValEl=document.getElementById('cfgSaldoIniVal');var iniDataEl=document.getElementById('cfgSaldoIniData');
@@ -1600,15 +1632,15 @@ function renderConfig(){
     return '<div class="mrow"><div class="mlabel">'+v.icon+' '+v.label+'</div><input class="minp" id="mig_'+k+'" type="number" placeholder="0" value="'+metaG+'" min="0" inputmode="decimal"></div>';
   }).join('');
   var cartEl=document.getElementById('cartoesEdit');
-  if(cartEl){var cc=getCartoes();var NCm={santander:'Santander',nubank:'Nubank',sicredi:'Sicredi'};
-    cartEl.innerHTML=Object.keys(NCm).map(function(k){return '<div class="mrow"><div class="mlabel">💳 '+NCm[k]+'</div><input class="minp" id="cart_'+k+'" type="number" placeholder="'+getDiaCiclo()+'" value="'+(cc[k]||'')+'" min="1" max="28" inputmode="numeric"></div>';}).join('');}
+  if(cartEl){var cc=getCartoes();var NCm=getListaCartoes();
+    cartEl.innerHTML=Object.keys(NCm).map(function(k){return '<div class="mrow"><div class="mlabel">💳 '+esc(NCm[k])+(CARTOES_BASE[k]?'':' <button class="idel" style="font-size:13px" onclick="removerCartao(\''+k+'\')">✕</button>')+'</div><input class="minp" id="cart_'+k+'" type="number" placeholder="'+getDiaCiclo()+'" value="'+(cc[k]||'')+'" min="1" max="28" inputmode="numeric"></div>';}).join('');}
   var light=document.body.classList.contains('light');
   var tc=document.getElementById('temaClaro'),te=document.getElementById('temaEscuro');
   if(tc)tc.className='tbtn'+(light?' ar':'');if(te)te.className='tbtn'+(!light?' ar':'');
   renderCatList();
 }
 function salvarCartoes(){
-  var c={};['santander','nubank','sicredi'].forEach(function(k){var v=parseInt(document.getElementById('cart_'+k).value);if(v>=1&&v<=28)c[k]=v;});
+  var c={};var old=getCartoes();if(old._nomes)c._nomes=old._nomes;Object.keys(getListaCartoes()).forEach(function(k){var el=document.getElementById('cart_'+k);if(!el)return;var v=parseInt(el.value);if(v>=1&&v<=28)c[k]=v;});
   setCartoes(c);alert('Fechamentos salvos!');render();renderConfig();
 }
 
