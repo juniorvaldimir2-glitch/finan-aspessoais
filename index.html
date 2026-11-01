@@ -133,7 +133,7 @@ window.addEventListener('load', function() {
 </script>
 <style>
 :root{--bg:#0a0c12;--s1:#13161f;--s2:#1c2030;--s3:#252a3a;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.12);--text:#eef0f8;--muted:rgba(238,240,248,0.4);--muted2:rgba(238,240,248,0.65);--green:#3de8a0;--blue:#5b9cf6;--red:#f76e6e;--gold:#f5c842;--purple:#a78bfa;--orange:#fb923c;}
-body.light{--bg:#f4f6fb;--s1:#ffffff;--s2:#eef1f7;--s3:#e1e6f0;--border:rgba(20,30,60,0.08);--border2:rgba(20,30,60,0.16);--text:#1d2433;--muted:rgba(29,36,51,0.55);--muted2:rgba(29,36,51,0.75);--green:#12905b;--blue:#2f7bd9;--red:#d6455d;--gold:#c77d0a;--purple:#7b5cd6;--orange:#d9701f}
+body.light{--bg:#f4f6fb;--s1:#ffffff;--s2:#eef1f7;--s3:#d9dfec;--border:rgba(20,30,60,0.12);--border2:rgba(20,30,60,0.22);--text:#141a29;--muted:rgba(20,26,41,0.68);--muted2:rgba(20,26,41,0.85);--green:#0b7a4b;--blue:#1f63bd;--red:#c0304a;--gold:#975a00;--purple:#6a49c4;--orange:#b85a10}
 body.light .sbtn,body.light .period-apply,body.light .fab,body.light #loginScreen button{color:#fff!important}
 body.light .overlay{background:rgba(20,30,60,0.45)}
 body.light .period-panel{box-shadow:0 20px 60px rgba(20,30,60,0.2)}
@@ -713,6 +713,7 @@ function getCartoes(){try{var c=JSON.parse(localStorage.getItem('fin_cartoes'));
 function setCartoes(c){localStorage.setItem('fin_cartoes',JSON.stringify(c));if(typeof syncToFirebase==='function')syncToFirebase();}
 function getDiaCartao(cd){var d=parseInt(getCartoes()[cd]);return(d>=1&&d<=28)?d:getDiaCiclo();}
 function getMetasVisiveis(){try{var v=JSON.parse(localStorage.getItem('fin_metas_visiveis'));return Array.isArray(v)?v:null;}catch(e){return null;}}
+function TXT(hex){if(!document.body.classList.contains('light')||!/^#[0-9a-f]{6}$/i.test(hex))return hex;var n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255,k=0.5,t=[20,26,41];return 'rgb('+Math.round(r*(1-k)+t[0]*k)+','+Math.round(g*(1-k)+t[1]*k)+','+Math.round(b*(1-k)+t[2]*k)+')';}
 function TC(){return getComputedStyle(document.body).getPropertyValue('--muted').trim()||'rgba(238,240,248,0.5)';}
 function GC(){return document.body.classList.contains('light')?'rgba(20,30,60,0.08)':'rgba(255,255,255,0.04)';}
 function BC(){return getComputedStyle(document.body).getPropertyValue('--s1').trim()||'#13161f';}
@@ -1180,7 +1181,7 @@ function renderMetasResumo(byCat,cg,all){
     var gTotal=byInvTotal[k]||0;
     var c=ci[k]||INVS.outros_inv;
     var html='<div class="prog-row" style="margin-bottom:16px">';
-    html+='<div style="font-size:13px;font-weight:600;color:'+c.color+';margin-bottom:8px">'+c.icon+' '+c.label+'</div>';
+    html+='<div style="font-size:13px;font-weight:600;color:'+TXT(c.color)+';margin-bottom:8px">'+c.icon+' '+c.label+'</div>';
     if(metaM>0){
       var pM=Math.min(gPeriodo/metaM*100,100);var clsM=pM>=100?'ok':pM>=80?'warn':'inv';
       html+='<div style="font-size:11px;color:var(--muted2);margin-bottom:3px">'+fmt(gPeriodo)+' / '+fmt(metaM)+'</div>';
@@ -1368,7 +1369,7 @@ function renderInvest(){
     var gPeriodo=byMes[k]||0;var gTotal=byTot[k]||0;
     var c=ci[k]||INVS.outros_inv;
     var html='<div class="prog-row" style="margin-bottom:16px">';
-    html+='<div style="font-size:13px;font-weight:600;color:'+c.color+';margin-bottom:8px">'+c.icon+' '+c.label+'</div>';
+    html+='<div style="font-size:13px;font-weight:600;color:'+TXT(c.color)+';margin-bottom:8px">'+c.icon+' '+c.label+'</div>';
     if(metaG>0){
       var pG=Math.min(gTotal/metaG*100,100);
       html+='<div style="font-size:11px;color:var(--muted2);margin-bottom:3px">'+fmt(gTotal)+' / '+fmt(metaG)+'</div>';
